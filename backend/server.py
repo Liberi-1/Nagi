@@ -1,26 +1,42 @@
-"""server.py —— WebSocket 服务端：接收录音，调用 Pipeline，返回对话响应"""
+"""server.py —— WebSocket 服务端：对话响应 + 超时控制 + 分层错误"""
 import asyncio
+import struct
 import uuid
 from pathlib import Path
 
 import websockets
 
-from pipeline import process
+from pipeline import StageError, process
 from protocol import pack_message, unpack_message
 
 TEMP_DIR = Path(__file__).parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
+PIPELINE_TIMEOUT = 60   # 单次对话处理最多 60 秒
+
+
+async def send_error(websocket, request_id: str, code: str, message: str):
+    """按协议回 error 消息，服务本身不崩。"""
+    print(f"[错误] {code}：{message}")
+    await websocket.send(pack_message({
+        "type": "error",
+        "request_id": request_id,
+        "code": code,
+        "message": message,
+    }))
+
 
 async def handle_chat(websocket, header: dict, payload: bytes):
     request_id = header.get("request_id", "")
 
-    # 录音保存为临时文件，交给 pipeline 处理
     input_path = TEMP_DIR / f"{request_id or uuid.uuid4().hex}.wav"
     input_path.write_bytes(payload)
 
-    # 关键：pipeline 是同步阻塞的，丢到线程里跑，不卡住事件循环
-    result = await asyncio.to_thread(process, str(input_path))
+    # 线程里跑同步管线，外套超时
+    result = await asyncio.wait_for(
+        asyncio.to_thread(process, str(input_path)),
+        timeout=PIPELINE_TIMEOUT,
+    )
 
     reply_audio = Path(result["audio"]).read_bytes()
     await websocket.send(pack_message({
@@ -36,21 +52,23 @@ async def handler(websocket):
     print(f"[连接] {websocket.remote_address}")
     try:
         async for frame in websocket:
+            request_id = ""
             try:
                 header, payload = unpack_message(frame)
+                request_id = header.get("request_id", "")
                 print(f"[请求] {header}")
-                if header.get("type") == "chat_request":
-                    await handle_chat(websocket, header, payload)
-                else:
+                if header.get("type") != "chat_request":
                     raise ValueError(f"未知消息类型：{header.get('type')}")
+                await handle_chat(websocket, header, payload)
+            except StageError as e:
+                await send_error(websocket, request_id, f"{e.stage}_FAILED", str(e.cause))
+            except (asyncio.TimeoutError, TimeoutError):
+                await send_error(websocket, request_id, "TIMEOUT",
+                                 f"处理超过 {PIPELINE_TIMEOUT} 秒，已放弃")
+            except (ValueError, struct.error) as e:
+                await send_error(websocket, request_id, "BAD_REQUEST", str(e))
             except Exception as e:
-                # 任何异常都按协议回 error 消息，不让服务崩掉（第 8 步再细化）
-                await websocket.send(pack_message({
-                    "type": "error",
-                    "request_id": header.get("request_id", "") if "header" in dir() else "",
-                    "code": "INTERNAL",
-                    "message": str(e),
-                }))
+                await send_error(websocket, request_id, "INTERNAL", str(e))
     finally:
         print(f"[断开] {websocket.remote_address}")
 
