@@ -146,7 +146,7 @@ __pycache__/
 node_modules/
 
 # Mixamo 素材不入库（授权限制），原创角色放其他目录不受影响
-client-unity/Assets/Mixamo/*.fbx
+client-unity/Assets/
 
 # Unity 子目录工程
 client-unity/Library/
