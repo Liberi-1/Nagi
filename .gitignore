@@ -176,3 +176,5 @@ client-unity/Assets/UOSLauncherEncrypt/
 client-unity/Assets/Models/*.fbx
 client-unity/Assets/Animations/*.fbx
 client-unity/Assets/test_Models/
+client-unity/Assets/test_Models.meta
+client-unity/Assets/UOSLauncherEncrypt.meta
