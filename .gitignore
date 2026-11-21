@@ -144,15 +144,35 @@ __pycache__/
 
 # Node
 node_modules/
+chore: 完善 gitignore，排除 Unity 生成目录和测试音频产物
+# ===== 后端运行/测试产物 =====
+backend/temp/
+backend/reply.mp3
+backend/reply_ws.mp3
+backend/input.wav
 
-# Mixamo 素材不入库（授权限制），原创角色放其他目录不受影响
-client-unity/Assets/
+# Python 缓存（顺便加上，迟早需要）
+__pycache__/
+*.pyc
 
-# Unity 子目录工程
+# ===== Unity 自动生成的目录 =====
 client-unity/Library/
 client-unity/Temp/
-client-unity/UserSettings/
 client-unity/Logs/
+client-unity/UserSettings/
 client-unity/obj/
 client-unity/.vs/
+client-unity/.idea/
+client-unity/Build/
+client-unity/Builds/
+
+# 本地测试产物
+client-unity/recording.wav
+
+# UOS 插件自动生成
+client-unity/Assets/UOSLauncherEncrypt/
+
+# ===== Mixamo 资源：二进制不入库，.meta 保留 =====
 client-unity/Assets/Models/*.fbx
+client-unity/Assets/Animations/*.fbx
+client-unity/Assets/test_Models/
