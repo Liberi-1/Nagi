@@ -138,3 +138,41 @@ export function getConversations(
     `/api/conversations?${params.toString()}`,
   );
 }
+
+export interface TTSPreviewPayload {
+  text: string;
+  voice: string;
+}
+
+export async function previewVoice(
+  payload: TTSPreviewPayload,
+): Promise<Blob> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/tts/preview`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "audio/mpeg",
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    let message = `试听生成失败：HTTP ${response.status}`;
+
+    try {
+      const body = await response.json();
+      if (body.detail) {
+        message = formatErrorDetail(body.detail);
+      }
+    } catch {
+      // 非 JSON 错误响应保留默认提示
+    }
+
+    throw new Error(message);
+  }
+
+  return await response.blob();
+}

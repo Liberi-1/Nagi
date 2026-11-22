@@ -1,7 +1,13 @@
 """api.py —— Nagi Web 管理后台 REST API"""
 from datetime import datetime
+from tts import speak
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    HTTPException,
+    Query,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import text
@@ -15,7 +21,7 @@ from repositories import (
     update_active_persona,
 )
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from repositories import (
     get_active_persona,
@@ -23,6 +29,11 @@ from repositories import (
     get_default_user,
     update_active_persona,
 )
+
+import asyncio
+import uuid
+from pathlib import Path
+from typing import Literal
 
 class UTF8JSONResponse(JSONResponse):
     """显式声明 UTF-8，兼容 Windows PowerShell 等客户端。"""
@@ -47,6 +58,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+TTS_TEMP_DIR = Path(__file__).parent / "temp"
+TTS_TEMP_DIR.mkdir(exist_ok=True)
 
 
 class PersonaResponse(BaseModel):
@@ -100,6 +113,27 @@ class ConversationPageResponse(BaseModel):
     page: int
     page_size: int
     items: list[ConversationRecordResponse]
+
+class TTSPreviewRequest(BaseModel):
+    """生成一条临时语音试听。"""
+
+    text: str = Field(min_length=1, max_length=200)
+    voice: Literal[
+        "zh-CN-XiaoxiaoNeural",
+        "zh-CN-XiaoyiNeural",
+        "zh-CN-YunxiNeural",
+        "zh-CN-YunjianNeural",
+    ] = "zh-CN-XiaoxiaoNeural"
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("试听文本不能为空")
+
+        return value
 
 @app.get("/api/health")
 def health_check():
@@ -205,3 +239,40 @@ def read_conversations(
             status_code=404,
             detail=str(e),
         )
+
+@app.post("/api/tts/preview")
+async def create_tts_preview(
+    request: TTSPreviewRequest,
+    background_tasks: BackgroundTasks,
+):
+    """生成临时 MP3，响应发送完成后自动删除。"""
+    output_path = (
+        TTS_TEMP_DIR / f"preview-{uuid.uuid4().hex}.mp3"
+    )
+
+    try:
+        await asyncio.to_thread(
+            speak,
+            request.text,
+            output_path,
+            request.voice,
+        )
+
+    except Exception as e:
+        output_path.unlink(missing_ok=True)
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"TTS 预览生成失败：{e}",
+        )
+
+    background_tasks.add_task(
+        output_path.unlink,
+        missing_ok=True,
+    )
+
+    return FileResponse(
+        output_path,
+        media_type="audio/mpeg",
+        filename="nagi-preview.mp3",
+    )

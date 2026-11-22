@@ -761,3 +761,54 @@ a:focus-visible {
     flex: 1;
   }
 }
+
+.voice-form {
+  max-width: 760px;
+  margin-top: 48px;
+}
+
+.voice-form .form-field + .form-field {
+  margin-top: 24px;
+}
+
+.voice-textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  resize: vertical;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.75;
+}
+
+.voice-textarea:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.voice-success {
+  margin-top: 24px;
+}
+
+.audio-player {
+  max-width: 760px;
+  margin-top: 24px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.audio-player audio {
+  display: block;
+  width: 100%;
+}
+
+.audio-player p {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
