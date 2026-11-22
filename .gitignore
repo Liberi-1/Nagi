@@ -144,7 +144,7 @@ __pycache__/
 
 # Node
 node_modules/
-chore: 完善 gitignore，排除 Unity 生成目录和测试音频产物
+
 # ===== 后端运行/测试产物 =====
 backend/temp/
 backend/reply.mp3
