@@ -1,4 +1,4 @@
-# Nagi 对话协议 v0.1
+# Nagi 对话协议 v0.2
 
 ## 1. 传输层
 
@@ -34,11 +34,15 @@ JSON 头字段：
 |---|---|---|
 | type | string | 固定 `"chat_response"` |
 | request_id | string | 与对应请求一致 |
+| session_id | string | 服务端为当前 WebSocket 连接生成的会话 ID；同一连接内保持不变 |
 | text | string | 角色回复文本 |
 | emotion | string | 情绪标签，v0.1 固定 `"neutral"` |
 | audio_format | string | 回复音频格式，v0.1 固定 `"mp3"` |
 
 负载：回复音频的完整 MP3 文件字节。
+v0.2 中，服务端为每个 WebSocket 连接生成独立的 `session_id`。
+同一连接内的连续请求共享多轮对话上下文；重新连接后开启新会话。
+旧客户端可以忽略响应中的 `session_id` 字段，无需修改原请求格式。
 
 ### 2.3 error（服务端 → 客户端）
 
@@ -63,6 +67,7 @@ JSON 头字段：
 | TTS_FAILED | 语音合成失败 |
 | TIMEOUT | 处理超时 |
 | INTERNAL | 其他服务端异常 |
+| DB_FAILED | 人设读取、上下文查询或对话入库失败 |
 
 ## 4. 一次完整往返示例
 
