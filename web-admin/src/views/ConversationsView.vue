@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from "vue";
 
 import {
   getConversations,
+  getEmotionStats,
   type ConversationRecord,
+  type EmotionStat,
 } from "../lib/api";
 
 const records = ref<ConversationRecord[]>([]);
@@ -39,8 +41,49 @@ const emotionLabels: Record<string, string> = {
   sad: "难过",
 };
 
+const emotionStats = ref<EmotionStat[]>([]);
+const statsError = ref("");
+
+const statsTotal = computed(() => {
+  return emotionStats.value.reduce(
+    (sum, item) => sum + item.count,
+    0,
+  );
+});
+
+const maxEmotionCount = computed(() => {
+  return Math.max(
+    1,
+    ...emotionStats.value.map((item) => item.count),
+  );
+});
+
 function emotionLabel(value: string): string {
   return emotionLabels[value] ?? value;
+}
+
+function emotionPercentage(count: number): number {
+  if (statsTotal.value === 0) return 0;
+  return Math.round((count / statsTotal.value) * 100);
+}
+
+async function loadEmotionStats() {
+  statsError.value = "";
+
+  try {
+    emotionStats.value = await getEmotionStats();
+  } catch (e) {
+    statsError.value = e instanceof Error
+      ? e.message
+      : "情绪统计读取失败";
+  }
+}
+
+async function refreshData() {
+  await Promise.all([
+    loadConversations(),
+    loadEmotionStats(),
+  ]);
 }
 
 function formatDate(value: string): string {
@@ -95,7 +138,7 @@ async function loadConversations() {
 
 function applyFilters() {
   page.value = 1;
-  loadConversations();
+  refreshData();
 }
 
 function resetFilters() {
@@ -103,14 +146,14 @@ function resetFilters() {
   emotionFilter.value = "";
   page.value = 1;
   pageSize.value = 10;
-  loadConversations();
+  refreshData();
 }
 
 function filterBySession(sessionId: string) {
   sessionFilter.value = sessionId;
   emotionFilter.value = "";
   page.value = 1;
-  loadConversations();
+  refreshData();
 }
 
 function goToPage(target: number) {
@@ -126,7 +169,7 @@ function goToPage(target: number) {
   loadConversations();
 }
 
-onMounted(loadConversations);
+onMounted(refreshData);
 </script>
 
 <template>
@@ -139,6 +182,61 @@ onMounted(loadConversations);
         </p>
       </div>
     </div>
+
+    <section
+      class="emotion-stats"
+      aria-labelledby="emotion-stats-title"
+    >
+      <div class="stats-heading">
+        <div>
+          <h2 id="emotion-stats-title">情绪分布</h2>
+          <p>全部对话 / 共 {{ statsTotal }} 条</p>
+        </div>
+      </div>
+
+      <p
+        v-if="statsError"
+        class="save-error"
+        role="alert"
+      >
+        {{ statsError }}
+      </p>
+
+      <p
+        v-else-if="emotionStats.length === 0"
+        class="stats-empty"
+      >
+        暂无可统计的对话记录
+      </p>
+
+      <div v-else class="stats-list">
+        <div
+          v-for="stat in emotionStats"
+          :key="stat.emotion"
+          class="stat-row"
+        >
+          <div class="stat-label">
+            <span>{{ emotionLabel(stat.emotion) }}</span>
+            <span>
+              {{ stat.count }} 条 / {{ emotionPercentage(stat.count) }}%
+            </span>
+          </div>
+
+          <div
+            class="stat-track"
+            role="img"
+            :aria-label="`${emotionLabel(stat.emotion)}：${stat.count} 条，占 ${emotionPercentage(stat.count)}%`"
+          >
+            <div
+              class="stat-bar"
+              :style="{
+                transform: `scaleX(${stat.count / maxEmotionCount})`,
+              }"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <form
       class="log-filters"

@@ -176,3 +176,30 @@ def get_conversation_page(
     )
 
     return total, records
+
+def get_emotion_stats(
+    db: Session,
+    *,
+    user_id: int,
+) -> list[tuple[str, int]]:
+    """统计默认用户全部对话中的情绪分布。"""
+    rows = db.execute(
+        select(
+            ConversationRecord.emotion,
+            func.count(),
+        )
+        .where(
+            ConversationRecord.user_id == user_id
+        )
+        .group_by(
+            ConversationRecord.emotion
+        )
+        .order_by(
+            func.count().desc()
+        )
+    ).all()
+
+    return [
+        (str(emotion), int(count))
+        for emotion, count in rows
+    ]

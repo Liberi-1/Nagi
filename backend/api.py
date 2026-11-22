@@ -27,6 +27,7 @@ from repositories import (
     get_active_persona,
     get_conversation_page,
     get_default_user,
+    get_emotion_stats,
     update_active_persona,
 )
 
@@ -134,6 +135,10 @@ class TTSPreviewRequest(BaseModel):
             raise ValueError("试听文本不能为空")
 
         return value
+
+class EmotionStatResponse(BaseModel):
+    emotion: str
+    count: int
 
 @app.get("/api/health")
 def health_check():
@@ -276,3 +281,31 @@ async def create_tts_preview(
         media_type="audio/mpeg",
         filename="nagi-preview.mp3",
     )
+
+@app.get(
+    "/api/conversations/emotion-stats",
+    response_model=list[EmotionStatResponse],
+)
+def read_emotion_stats():
+    """返回全部对话的情绪分布。"""
+    try:
+        with SessionLocal() as db:
+            user = get_default_user(db)
+            stats = get_emotion_stats(
+                db,
+                user_id=user.id,
+            )
+
+            return [
+                {
+                    "emotion": emotion,
+                    "count": count,
+                }
+                for emotion, count in stats
+            ]
+
+    except LookupError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        )

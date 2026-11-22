@@ -176,3 +176,14 @@ export async function previewVoice(
 
   return await response.blob();
 }
+
+export interface EmotionStat {
+  emotion: string;
+  count: number;
+}
+
+export function getEmotionStats(): Promise<EmotionStat[]> {
+  return request<EmotionStat[]>(
+    "/api/conversations/emotion-stats",
+  );
+}

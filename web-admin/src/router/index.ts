@@ -5,6 +5,7 @@ import {
 
 import PersonaView from "../views/PersonaView.vue";
 import ConversationsView from "../views/ConversationsView.vue";
+import VoicePreviewView from "../views/VoicePreviewView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -22,6 +23,11 @@ const router = createRouter({
       path: "/conversations",
       name: "conversations",
       component: ConversationsView,
+    },
+    {
+      path: "/voice",
+      name: "voice",
+      component: VoicePreviewView,
     },
   ],
 });

@@ -54,12 +54,15 @@ onMounted(loadHealth);
         </RouterLink>
 
         <nav class="main-nav" aria-label="管理后台导航">
-          <RouterLink to="/persona">
+        <RouterLink to="/persona">
             人设配置
-          </RouterLink>
-          <RouterLink to="/conversations">
+        </RouterLink>
+        <RouterLink to="/conversations">
             对话日志
-          </RouterLink>
+        </RouterLink>
+        <RouterLink to="/voice">
+            音色试听
+        </RouterLink>
         </nav>
       </div>
 
