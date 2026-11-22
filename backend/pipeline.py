@@ -220,18 +220,18 @@ def process(
     except Exception as e:
         raise StageError("DB", e)
 
-        if context_turns > 0:
-            cache_key = (user_id, session_id)
+    if context_turns > 0:
+        cache_key = (user_id, session_id)
 
-            cache_saved = append_to_cache(
-                user_id=user_id,
-                session_id=session_id,
-                turn={
-                    "user_text": user_text,
-                    "assistant_text": reply_text,
-                },
-                max_turns=context_turns,
-            )
+        cache_saved = append_to_cache(
+            user_id=user_id,
+            session_id=session_id,
+            turn={
+                "user_text": user_text,
+                "assistant_text": reply_text,
+            },
+            max_turns=context_turns,
+        )
 
         if cache_saved:
             _CACHE_FALLBACK_SESSIONS.discard(cache_key)
