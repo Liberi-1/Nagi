@@ -103,3 +103,29 @@ def get_recent_conversations(
 
     records.reverse()
     return records
+
+def update_active_persona(
+    db: Session,
+    *,
+    user_id: int,
+    name: str,
+    content: str,
+) -> Persona:
+    """更新当前启用人设，并返回更新后的数据库对象。"""
+    persona = get_active_persona(db, user_id)
+
+    persona.name = name.strip()
+    persona.content = content.strip()
+
+    if not persona.name:
+        raise ValueError("人设名称不能为空")
+    if not persona.content:
+        raise ValueError("人设内容不能为空")
+
+    try:
+        db.commit()
+        db.refresh(persona)
+        return persona
+    except Exception:
+        db.rollback()
+        raise
