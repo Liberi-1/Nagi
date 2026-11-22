@@ -1,5 +1,5 @@
 """repositories.py —— 人设与对话记录的数据访问层"""
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from models import ConversationRecord, Persona, User
@@ -129,3 +129,50 @@ def update_active_persona(
     except Exception:
         db.rollback()
         raise
+
+def get_conversation_page(
+    db: Session,
+    *,
+    user_id: int,
+    page: int = 1,
+    page_size: int = 20,
+    session_id: str | None = None,
+    emotion: str | None = None,
+) -> tuple[int, list[ConversationRecord]]:
+    """分页查询对话记录，结果按记录 ID 倒序，最新记录在前。"""
+    if page < 1:
+        raise ValueError("page 必须大于等于 1")
+    if not 1 <= page_size <= 100:
+        raise ValueError("page_size 必须在 1～100 之间")
+
+    conditions = [
+        ConversationRecord.user_id == user_id,
+    ]
+
+    if session_id:
+        conditions.append(
+            ConversationRecord.session_id == session_id
+        )
+
+    if emotion:
+        conditions.append(
+            ConversationRecord.emotion == emotion
+        )
+
+    total = db.scalar(
+        select(func.count())
+        .select_from(ConversationRecord)
+        .where(*conditions)
+    ) or 0
+
+    records = list(
+        db.scalars(
+            select(ConversationRecord)
+            .where(*conditions)
+            .order_by(ConversationRecord.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+    )
+
+    return total, records

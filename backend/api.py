@@ -1,7 +1,7 @@
 """api.py —— Nagi Web 管理后台 REST API"""
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import text
@@ -16,6 +16,13 @@ from repositories import (
 )
 
 from fastapi.responses import JSONResponse
+
+from repositories import (
+    get_active_persona,
+    get_conversation_page,
+    get_default_user,
+    update_active_persona,
+)
 
 class UTF8JSONResponse(JSONResponse):
     """显式声明 UTF-8，兼容 Windows PowerShell 等客户端。"""
@@ -70,6 +77,29 @@ class PersonaUpdateRequest(BaseModel):
 
         return value
 
+class ConversationRecordResponse(BaseModel):
+    """返回给前端的一轮对话。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    persona_id: int
+    session_id: str
+    request_id: str
+    user_text: str
+    assistant_text: str
+    emotion: str
+    created_at: datetime
+
+
+class ConversationPageResponse(BaseModel):
+    """对话分页结果。"""
+
+    total: int
+    page: int
+    page_size: int
+    items: list[ConversationRecordResponse]
 
 @app.get("/api/health")
 def health_check():
@@ -127,6 +157,49 @@ def update_persona(request: PersonaUpdateRequest):
                 name=request.name,
                 content=request.content,
             )
+    except LookupError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        )
+
+@app.get(
+    "/api/conversations",
+    response_model=ConversationPageResponse,
+)
+def read_conversations(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    session_id: str | None = Query(
+        default=None,
+        max_length=64,
+    ),
+    emotion: str | None = Query(
+        default=None,
+        max_length=32,
+    ),
+):
+    """按时间倒序分页查询对话，支持会话和情绪筛选。"""
+    try:
+        with SessionLocal() as db:
+            user = get_default_user(db)
+
+            total, records = get_conversation_page(
+                db,
+                user_id=user.id,
+                page=page,
+                page_size=page_size,
+                session_id=session_id,
+                emotion=emotion,
+            )
+
+            return {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "items": records,
+            }
+
     except LookupError as e:
         raise HTTPException(
             status_code=404,
