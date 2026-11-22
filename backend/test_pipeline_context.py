@@ -9,6 +9,7 @@ from database import SessionLocal
 from models import ConversationRecord
 from pipeline import process
 from repositories import get_default_user, get_recent_conversations
+from context_cache import clear_cache
 
 chat_calls = []
 audio_paths = []
@@ -115,6 +116,9 @@ def main() -> None:
                 db.delete(record)
 
             db.commit()
+            
+            user = get_default_user(db)
+            clear_cache(user.id, session_id)
 
         # 清理模拟音频
         for path in audio_paths:

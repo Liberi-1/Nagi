@@ -14,11 +14,19 @@ from repositories import (
 )
 from tts import speak
 
+from context_cache import (
+    append_to_cache,
+    load_cached_history,
+    replace_cache,
+)
+
 TEMP_DIR = Path(__file__).parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
 DEFAULT_SESSION_ID = "cli-default"
 DEFAULT_CONTEXT_TURNS = 10
+# 记录当前进程内发生过 Redis 故障、需要重新校准缓存的会话
+_CACHE_FALLBACK_SESSIONS: set[tuple[int, str]] = set()
 
 
 class StageError(Exception):
@@ -48,35 +56,91 @@ def with_retry(func, *args, max_attempts: int = 3, **kwargs):
 def load_context(
     session_id: str,
     context_turns: int,
-) -> tuple[int, int, str, list[dict[str, str]]]:
-    """从数据库加载默认用户、启用人设和最近对话。"""
+) -> tuple[int, int, str, list[dict[str, str]], str]:
+    """
+    加载默认用户、启用人设和对话上下文。
+
+    返回：
+    user_id、persona_id、人设内容、LLM 历史消息、上下文来源。
+    """
     with SessionLocal() as db:
         user = get_default_user(db)
         persona = get_active_persona(db, user.id)
 
-        records = []
-        if context_turns > 0:
-            records = get_recent_conversations(
-                db,
+        cache_key = (user.id, session_id)
+        history = None
+        context_source = ""
+
+        # 发生过缓存故障的会话先跳过 Redis，避免读取旧上下文
+        if (
+            context_turns > 0
+            and cache_key not in _CACHE_FALLBACK_SESSIONS
+        ):
+            history = load_cached_history(
                 user_id=user.id,
                 session_id=session_id,
                 limit=context_turns,
             )
 
-        history: list[dict[str, str]] = []
+            if history is not None:
+                context_source = "Redis"
 
-        # 每条数据库记录展开为一条 user 和一条 assistant 消息
-        for record in records:
-            history.append({
-                "role": "user",
-                "content": record.user_text,
-            })
-            history.append({
-                "role": "assistant",
-                "content": record.assistant_text,
-            })
+        # 缓存未命中、被跳过或不可用：从 MySQL 加载
+        if history is None:
+            records = []
 
-        return user.id, persona.id, persona.content, history
+            if context_turns > 0:
+                records = get_recent_conversations(
+                    db,
+                    user_id=user.id,
+                    session_id=session_id,
+                    limit=context_turns,
+                )
+
+            history = []
+            turns = []
+
+            for record in records:
+                history.extend([
+                    {
+                        "role": "user",
+                        "content": record.user_text,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": record.assistant_text,
+                    },
+                ])
+
+                turns.append({
+                    "user_text": record.user_text,
+                    "assistant_text": record.assistant_text,
+                })
+
+            if context_turns > 0:
+                cache_rebuilt = replace_cache(
+                    user_id=user.id,
+                    session_id=session_id,
+                    turns=turns,
+                    max_turns=context_turns,
+                )
+
+                if cache_rebuilt:
+                    _CACHE_FALLBACK_SESSIONS.discard(cache_key)
+                else:
+                    _CACHE_FALLBACK_SESSIONS.add(cache_key)
+
+                context_source = "MySQL"
+            else:
+                context_source = "Disabled"
+
+        return (
+            user.id,
+            persona.id,
+            persona.content,
+            history,
+            context_source,
+        )
 
 
 def process(
@@ -110,11 +174,21 @@ def process(
     print(f"[ASR] 识别结果：{user_text}")
 
     try:
-        user_id, persona_id, persona_content, history = load_context(
+        (
+            user_id,
+            persona_id,
+            persona_content,
+            history,
+            context_source,
+        ) = load_context(
             session_id=session_id,
             context_turns=context_turns,
         )
-        print(f"[DB] 已加载启用人设和 {len(history) // 2} 轮历史")
+
+        print(
+            f"[上下文] 来源={context_source}，"
+            f"历史={len(history) // 2} 轮"
+        )
     except Exception as e:
         raise StageError("DB", e)
 
