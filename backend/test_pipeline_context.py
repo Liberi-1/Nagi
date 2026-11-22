@@ -1,18 +1,26 @@
-"""test_pipeline_context.py —— 不依赖真实 ASR/TTS 的 Pipeline 数据层测试"""
+"""test_pipeline_context.py —— 不依赖真实 ASR/LLM/TTS 的多轮上下文测试"""
 import uuid
 from pathlib import Path
 from unittest.mock import patch
 
 from sqlalchemy import select
 
+from context_cache import clear_cache, load_cached_history
 from database import SessionLocal
 from models import ConversationRecord
 from pipeline import process
 from repositories import get_default_user, get_recent_conversations
-from context_cache import clear_cache
+
 
 chat_calls = []
 audio_paths = []
+
+TEST_INPUTS = [
+    "第一轮输入",
+    "第二轮输入",
+    "第三轮输入",
+    "第四轮输入",
+]
 
 
 def fake_chat(user_text, persona_content=None, history=None):
@@ -33,75 +41,104 @@ def fake_speak(text, output_path):
     return output_path
 
 
+def expected_turn_messages(index: int) -> list[dict[str, str]]:
+    """生成指定轮次展开后的 user + assistant 消息。"""
+    return [
+        {
+            "role": "user",
+            "content": TEST_INPUTS[index],
+        },
+        {
+            "role": "assistant",
+            "content": f"{TEST_INPUTS[index]}的模拟回复",
+        },
+    ]
+
+
 def main() -> None:
     session_id = f"test-pipeline-{uuid.uuid4().hex}"
+    chat_calls.clear()
 
     try:
         with (
             patch(
                 "pipeline.transcribe",
-                side_effect=["第一轮输入", "第二轮输入"],
+                side_effect=TEST_INPUTS,
             ),
             patch("pipeline.chat", side_effect=fake_chat),
             patch("pipeline.speak", side_effect=fake_speak),
         ):
-            first = process(
-                "不存在的音频也能测试，因为 ASR 已被模拟.wav",
-                session_id=session_id,
-                request_id="test-request-1",
+            for index, user_text in enumerate(TEST_INPUTS, start=1):
+                result = process(
+                    "不存在的音频也能测试，因为 ASR 已被模拟.wav",
+                    session_id=session_id,
+                    request_id=f"test-request-{index}",
+                )
+                audio_paths.append(Path(result["audio"]))
+
+                assert result["text"] == f"{user_text}的模拟回复"
+                assert result["session_id"] == session_id
+
+        assert len(chat_calls) == len(TEST_INPUTS)
+
+        # 逐轮构造应当传入 LLM 的完整历史。
+        # 第一轮为 0 轮，之后依次为 1、2、3 轮。
+        expected_history = []
+
+        for index, call in enumerate(chat_calls, start=1):
+            assert call["user_text"] == TEST_INPUTS[index - 1]
+            assert call["persona_content"].strip(), (
+                f"第 {index} 轮没有读取到数据库人设"
             )
-            audio_paths.append(Path(first["audio"]))
 
-            second = process(
-                "不存在的音频也能测试，因为 ASR 已被模拟.wav",
-                session_id=session_id,
-                request_id="test-request-2",
+            assert call["history"] == expected_history, (
+                f"第 {index} 轮上下文错误。\n"
+                f"期望：{expected_history}\n"
+                f"实际：{call['history']}"
             )
-            audio_paths.append(Path(second["audio"]))
 
-        assert len(chat_calls) == 2
+            expected_history.extend(
+                expected_turn_messages(index - 1)
+            )
 
-        # 第一轮没有历史
-        assert chat_calls[0]["history"] == []
-
-        # 两轮都必须使用数据库中的非空人设
-        assert chat_calls[0]["persona_content"].strip()
-        assert chat_calls[1]["persona_content"].strip()
-
-        # 第二轮必须携带第一轮展开后的 user + assistant 历史
-        expected_history = [
-            {
-                "role": "user",
-                "content": "第一轮输入",
-            },
-            {
-                "role": "assistant",
-                "content": "第一轮输入的模拟回复",
-            },
-        ]
-        assert chat_calls[1]["history"] == expected_history
+        # 最终 expected_history 应包含四轮、共八条消息。
+        assert len(expected_history) == 8
 
         with SessionLocal() as db:
             user = get_default_user(db)
+            user_id = user.id
+
             records = get_recent_conversations(
                 db,
-                user_id=user.id,
+                user_id=user_id,
                 session_id=session_id,
                 limit=10,
             )
 
-            assert [r.user_text for r in records] == [
-                "第一轮输入",
-                "第二轮输入",
-            ]
+            assert [r.user_text for r in records] == TEST_INPUTS
             assert [r.assistant_text for r in records] == [
-                "第一轮输入的模拟回复",
-                "第二轮输入的模拟回复",
+                f"{user_text}的模拟回复"
+                for user_text in TEST_INPUTS
             ]
 
-        print("[通过] 第一轮没有历史，第二轮正确携带第一轮上下文")
-        print("[通过] 两轮均读取数据库人设")
-        print("[通过] 两轮对话均已写入 MySQL")
+        # 直接读取 Redis，防止 Pipeline 通过 MySQL 回退掩盖缓存追加故障。
+        cached_history = load_cached_history(
+            user_id=user_id,
+            session_id=session_id,
+            limit=10,
+        )
+
+        assert cached_history == expected_history, (
+            "Redis 中的四轮缓存与预期不一致。\n"
+            f"期望：{expected_history}\n"
+            f"实际：{cached_history}"
+        )
+
+        print("[通过] 四轮传入 LLM 的历史轮数依次为 0、1、2、3")
+        print("[通过] 第三轮和第四轮均携带之前的完整对话")
+        print("[通过] 四轮均读取数据库人设")
+        print("[通过] 四轮对话均已按顺序写入 MySQL")
+        print("[通过] Redis 已累积四轮缓存，而非停留在单一轮")
 
     finally:
         # 清理测试数据库记录
@@ -116,7 +153,7 @@ def main() -> None:
                 db.delete(record)
 
             db.commit()
-            
+
             user = get_default_user(db)
             clear_cache(user.id, session_id)
 
@@ -124,7 +161,7 @@ def main() -> None:
         for path in audio_paths:
             path.unlink(missing_ok=True)
 
-        print("[清理] 测试记录和模拟音频已删除")
+        print("[清理] 测试记录、Redis 缓存和模拟音频已删除")
 
 
 if __name__ == "__main__":
