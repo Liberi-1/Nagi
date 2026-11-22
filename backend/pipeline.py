@@ -220,6 +220,26 @@ def process(
     except Exception as e:
         raise StageError("DB", e)
 
+        if context_turns > 0:
+        cache_key = (user_id, session_id)
+
+        cache_saved = append_to_cache(
+            user_id=user_id,
+            session_id=session_id,
+            turn={
+                "user_text": user_text,
+                "assistant_text": reply_text,
+            },
+            max_turns=context_turns,
+        )
+
+        if cache_saved:
+            _CACHE_FALLBACK_SESSIONS.discard(cache_key)
+            print("[Redis] 本轮对话已追加到缓存")
+        else:
+            # 下一次先从 MySQL 重新校准，避免读取故障前的旧缓存
+            _CACHE_FALLBACK_SESSIONS.add(cache_key)
+            
     # 每轮使用独立音频文件，避免不同请求共同覆盖 reply.mp3
     output_audio = TEMP_DIR / f"{uuid.uuid4().hex}_reply.mp3"
 
