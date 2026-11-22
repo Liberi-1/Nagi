@@ -23,6 +23,32 @@ export interface PersonaPayload {
   content: string;
 }
 
+export interface ConversationRecord {
+  id: number;
+  user_id: number;
+  persona_id: number;
+  session_id: string;
+  request_id: string;
+  user_text: string;
+  assistant_text: string;
+  emotion: string;
+  created_at: string;
+}
+
+export interface ConversationPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: ConversationRecord[];
+}
+
+export interface ConversationQuery {
+  page: number;
+  page_size: number;
+  session_id?: string;
+  emotion?: string;
+}
+
 function formatErrorDetail(detail: unknown): string {
   if (typeof detail === "string") {
     return detail;
@@ -90,4 +116,25 @@ export function updateActivePersona(
     },
     body: JSON.stringify(payload),
   });
+}
+
+export function getConversations(
+  query: ConversationQuery,
+): Promise<ConversationPage> {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    page_size: String(query.page_size),
+  });
+
+  if (query.session_id?.trim()) {
+    params.set("session_id", query.session_id.trim());
+  }
+
+  if (query.emotion?.trim()) {
+    params.set("emotion", query.emotion.trim());
+  }
+
+  return request<ConversationPage>(
+    `/api/conversations?${params.toString()}`,
+  );
 }

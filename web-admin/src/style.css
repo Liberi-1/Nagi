@@ -517,3 +517,247 @@ a:focus-visible {
     width: 100%;
   }
 }
+
+.conversations-view {
+  width: 100%;
+  max-width: 1280px;
+}
+
+.log-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.5fr)
+    minmax(140px, 0.6fr)
+    minmax(120px, 0.5fr)
+    auto;
+  align-items: end;
+  gap: 16px;
+  margin-top: 48px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.log-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.filter-control {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 400;
+}
+
+.filter-control:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-actions .primary-button,
+.filter-actions .outline-button {
+  width: auto;
+  min-height: 44px;
+  padding: 8px 18px;
+}
+
+.log-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 12px;
+  color: var(--text-muted);
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.conversation-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+}
+
+.conversation-table th {
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid var(--text);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.conversation-table td {
+  padding: 20px 16px 20px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 14px;
+}
+
+.conversation-table th:nth-child(1) {
+  width: 130px;
+}
+
+.conversation-table th:nth-child(2),
+.conversation-table th:nth-child(3) {
+  width: 23%;
+}
+
+.conversation-table th:nth-child(4) {
+  width: 72px;
+}
+
+.conversation-table th:nth-child(5) {
+  width: 100px;
+}
+
+.conversation-table th:nth-child(6) {
+  width: 64px;
+}
+
+.time-cell {
+  color: var(--text-muted);
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px !important;
+}
+
+.truncated-text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.emotion-cell {
+  color: var(--text-muted);
+}
+
+.session-link {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--accent);
+  background: transparent;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.session-link:hover {
+  border-bottom-color: var(--accent);
+}
+
+.record-details summary {
+  min-height: 32px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.record-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.record-full {
+  position: absolute;
+  z-index: 2;
+  width: min(560px, calc(100vw - 64px));
+  margin-top: 8px;
+  padding: 20px;
+  border: 1px solid var(--text);
+  background: var(--surface);
+}
+
+.record-full dl {
+  margin: 0;
+}
+
+.record-full dt {
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.record-full dt:first-child {
+  margin-top: 0;
+}
+
+.record-full dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+.empty-state p {
+  margin-bottom: 0;
+  color: var(--text-muted);
+}
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.pagination .outline-button {
+  width: auto;
+}
+
+@media (max-width: 1000px) {
+  .log-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .log-filters {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 32px;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+  }
+
+  .filter-actions .primary-button,
+  .filter-actions .outline-button {
+    width: 100%;
+  }
+
+  .log-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .pagination .outline-button {
+    flex: 1;
+  }
+}
